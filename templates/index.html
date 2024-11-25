@@ -304,14 +304,52 @@
             background: rgba(20, 20, 30, 0.8);
             backdrop-filter: blur(10px);
             border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2rem;
         }
 
         .navbar-brand {
             color: var(--text-color);
+            font-size: 1.5rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-right: 0.2rem;
+        }
+
+        .brand-text {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-weight: 600;
+        }
+
+        .brand-text span {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         .navbar-brand:hover {
             color: var(--text-color);
+        }
+
+        .navbar-brand:hover .logo {
+            transform: scale(1.1);
         }
     </style>
 </head>
@@ -323,9 +361,14 @@
     </div>
 
     <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">📄 CV Generator</a>
+    <nav class="navbar">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <div class="logo-container">
+                    <div class="logo">⚡</div>
+                    <div class="brand-text">CV<span>former</span></div>
+                </div>
+            </a>
         </div>
     </nav>
 
