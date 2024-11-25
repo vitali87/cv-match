@@ -4,7 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📄 CV Generator</title>
+    <title>CV Match</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         :root {
             --bg-color: #0a0a0f;
@@ -198,7 +202,7 @@
             background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
             border: none;
             border-radius: 12px;
-            padding: 1.2rem 2rem;
+            padding: 1.2rem 2.5rem;
             font-size: 1.1rem;
             font-weight: 500;
             letter-spacing: 0.5px;
@@ -208,6 +212,8 @@
             overflow: hidden;
             opacity: 0;
             animation: fadeIn 0.5s ease forwards 0.8s;
+            display: inline-block;
+            min-width: 200px;
         }
 
         .btn-primary::before {
@@ -326,18 +332,22 @@
     <!-- Form Container -->
     <div class="form-container">
         <h2>Generate Your Optimized CV</h2>
-        <form>
+        <form class="text-center">
             <div class="form-section">
+                <label for="cvFile" class="form-label">
+                    📜 Upload Your CV
+                </label>
                 <div class="file-input-wrapper">
-                    <label for="cv_file" class="form-label">📝 Upload Your CV</label>
-                    <input class="form-control" type="file" id="cv_file" name="cv_file" accept=".pdf, .doc, .docx" required>
-                    <span class="file-types">PDF, DOC, DOCX</span>
+                    <input type="file" class="form-control" id="cvFile" name="cvFile" accept=".pdf,.doc,.docx" required>
+                    <span class="file-types">PDF, DOC</span>
                 </div>
             </div>
 
             <div class="form-section">
-                <label for="job_description" class="form-label">📋 Job Description</label>
-                <textarea class="form-control" id="job_description" name="job_description" rows="4" placeholder="Paste the job description here..." required></textarea>
+                <label for="jobDescription" class="form-label">
+                    🏛️ Job Description
+                </label>
+                <textarea class="form-control" id="jobDescription" name="jobDescription" rows="4" required></textarea>
             </div>
 
             <div class="form-section">
@@ -345,7 +355,7 @@
                 <input type="url" class="form-control" id="scholar_url" name="scholar_url" placeholder="https://scholar.google.com/...">
             </div>
 
-            <button type="submit" class="btn btn-primary w-100">🚀 Generate CV</button>
+            <button type="submit" class="btn btn-primary">🚀 Generate CV</button>
         </form>
     </div>
 
@@ -390,8 +400,8 @@
             document.getElementById('spinnerOverlay').style.display = 'flex';
 
             const formData = new FormData();
-            const cvFile = document.querySelector('input[name="cv_file"]').files[0];
-            const jobDescription = document.querySelector('textarea[name="job_description"]').value;
+            const cvFile = document.querySelector('input[name="cvFile"]').files[0];
+            const jobDescription = document.querySelector('textarea[name="jobDescription"]').value;
             const scholarUrl = document.querySelector('#scholar_url').value;
 
             formData.append('cv_file', cvFile);
