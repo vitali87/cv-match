@@ -188,27 +188,27 @@ def generate_markdown(cv_data: dict) -> str:
     """Convert structured CV data to markdown format."""
     sections = []
 
-    # Profile Section
+    # Profile Section with improved formatting
     if profile := cv_data.get("profile"):
-        name = profile.get("name", "")
+        # Name and Title with clean spacing
+        name = profile.get("name", "").upper()
         title = profile.get("title", "")
         sections.append(f"# {name}")
-        sections.append(f"## {title}\n")
+        sections.append(f"_{title}_\n")
 
-        if summary := profile.get("summary"):
-            sections.append(f"{summary}\n")
-
+        # Contact details in a clean, single line
         if contact := profile.get("contact"):
             contact_items = []
             if email := contact.get("email"):
-                contact_items.append(f"📧 {email}")
+                contact_items.append(f"{email}")
             if phone := contact.get("phone"):
-                contact_items.append(f"📱 {phone}")
+                contact_items.append(f"{phone}")
             if location := contact.get("location"):
-                contact_items.append(f"📍 {location}")
+                contact_items.append(f"{location}")
             if contact_items:
-                sections.append(" | ".join(contact_items) + "\n")
+                sections.append(" • ".join(contact_items))
 
+        # Professional links on a separate line
         if links := profile.get("links"):
             link_items = []
             for link in links:
@@ -216,44 +216,48 @@ def generate_markdown(cv_data: dict) -> str:
                 url = link.get("url", "")
                 link_items.append(f"[{platform}]({url})")
             if link_items:
-                sections.append(" | ".join(link_items) + "\n")
+                sections.append(" • ".join(link_items))
 
-        sections.append("---\n")  # Horizontal line after profile
+        # Professional summary with proper spacing
+        if summary := profile.get("summary"):
+            sections.append(f"\n{summary}")
+
+        sections.append("\n---\n")  # Clean separator
 
     # Work Experience
     if work_exp := cv_data.get("work_experience"):
-        sections.append("# Work Experience\n")
+        sections.append("## Professional Experience\n")
         for job in work_exp:
-            sections.append(f"## {job['title']} | {job['company']} | {job['date']}")
+            sections.append(f"### {job['title']} | {job['company']}")
+            sections.append(f"_{job['date']}_")
             for achievement in job.get("achievements", []):
                 sections.append(f"* {achievement}")
             sections.append("")
 
     # Education
     if education := cv_data.get("education"):
-        sections.append("# Education\n")
+        sections.append("## Education\n")
         for edu in education:
-            sections.append(
-                f"## {edu['degree']} - {edu['institution']} | {edu['date']}"
-            )
+            sections.append(f"### {edu['degree']} | {edu['institution']}")
+            sections.append(f"_{edu['date']}_")
             for detail in edu.get("details", []):
                 sections.append(f"* {detail}")
             sections.append("")
 
     # Skills
     if skills := cv_data.get("skills"):
-        sections.append("# Skills\n")
+        sections.append("## Technical Skills\n")
         for skill in skills:
-            sections.append(f"## {skill['category']}")
-            for item in skill.get("items", []):
-                sections.append(f"* {item}")
+            sections.append(f"**{skill['category']}:** {', '.join(skill['items'])}")
             sections.append("")
 
     # Languages
     if languages := cv_data.get("languages"):
-        sections.append("# Languages\n")
-        for lang in languages:
-            sections.append(f"* {lang['language']}: {lang.get('proficiency', '')}")
+        sections.append("## Languages\n")
+        lang_items = [
+            f"**{lang['language']}**: {lang['proficiency']}" for lang in languages
+        ]
+        sections.append(", ".join(lang_items))
 
     return "\n".join(sections)
 
