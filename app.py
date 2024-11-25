@@ -3,7 +3,6 @@ from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
 import uvicorn
-from typing import List
 import tempfile
 import os
 from docx import Document
@@ -16,6 +15,8 @@ import logging
 import subprocess
 from dotenv import load_dotenv
 import pypdf
+import random
+import string
 
 # Load environment variables and configure logging
 load_dotenv(override=True)
@@ -135,7 +136,7 @@ The JSON MUST be valid and follow this exact structure:
             messages=[
                 {
                     "role": "user",
-                    "content": f"""Parse this CV and optimize it for the following job description. Return ONLY the JSON object, no additional text or explanations.
+                    "content": f"""Parse this CV and optimize it for the following job description by changing or adding wording to match the keywords mentioned in the description. Ensure that skills required in the job description are deduced from my CV without providing any false information. Return ONLY the JSON object, no additional text or explanations.
 
 Job Description:
 {job_description}
@@ -146,42 +147,13 @@ CV Text:
             ],
         )
 
-        # Debug logging
-        logger.info(
-            f"Claude Response: {response.content[0].text[:500]}..."
-        )  # Log first 500 chars
-
-        # Try to clean the response before parsing
+        # Get the response text and parse it
         response_text = response.content[0].text.strip()
-        # Remove any markdown code block indicators if present
-        response_text = response_text.replace("```json", "").replace("```", "").strip()
-
-        try:
-            parsed_data = json.loads(response_text)
-            # Validate required fields
-            required_fields = [
-                "profile",
-                "work_experience",
-                "education",
-                "skills",
-                "languages",
-            ]
-            for field in required_fields:
-                if field not in parsed_data:
-                    raise ValueError(f"Missing required field: {field}")
-            return parsed_data
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON parsing error. Response text: {response_text}")
-            logger.error(f"JSON error details: {str(e)}")
-            raise ValueError(f"Failed to parse JSON response: {str(e)}")
+        return json.loads(response_text)
 
     except Exception as e:
         logger.error(f"Error parsing CV with LLM: {str(e)}")
-        logger.error(f"CV Text length: {len(cv_text)}")
-        logger.error(f"Job Description length: {len(job_description)}")
-        raise HTTPException(
-            status_code=500, detail={"message": "Failed to process CV", "error": str(e)}
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 def generate_markdown(cv_data: dict) -> str:
@@ -206,9 +178,9 @@ def generate_markdown(cv_data: dict) -> str:
             if location := contact.get("location"):
                 contact_items.append(f"{location}")
             if contact_items:
-                sections.append(" • ".join(contact_items))
+                sections.append(f"{' • '.join(contact_items)}\n")
 
-        # Professional links on a separate line
+        # Professional links on their own line
         if links := profile.get("links"):
             link_items = []
             for link in links:
@@ -216,13 +188,13 @@ def generate_markdown(cv_data: dict) -> str:
                 url = link.get("url", "")
                 link_items.append(f"[{platform}]({url})")
             if link_items:
-                sections.append(" • ".join(link_items))
+                sections.append(f"{' • '.join(link_items)}\n")
 
         # Professional summary with proper spacing
         if summary := profile.get("summary"):
-            sections.append(f"\n{summary}")
+            sections.append(f"{summary}\n")
 
-        sections.append("\n---\n")  # Clean separator
+        sections.append("---\n")
 
     # Work Experience
     if work_exp := cv_data.get("work_experience"):
@@ -244,19 +216,39 @@ def generate_markdown(cv_data: dict) -> str:
                 sections.append(f"* {detail}")
             sections.append("")
 
-    # Skills
+    # Skills with improved error handling
     if skills := cv_data.get("skills"):
         sections.append("## Technical Skills\n")
         for skill in skills:
-            sections.append(f"**{skill['category']}:** {', '.join(skill['items'])}")
+            category = skill.get("category", "")
+            items = skill.get("items", [])
+            # Handle cases where items might be dictionaries or strings
+            formatted_items = []
+            for item in items:
+                if isinstance(item, dict):
+                    # If item is a dictionary, extract the relevant value
+                    # Adjust the key based on your actual data structure
+                    formatted_items.append(
+                        str(
+                            item.get("name", "")
+                            or item.get("skill", "")
+                            or item.get("value", "")
+                        )
+                    )
+                else:
+                    formatted_items.append(str(item))
+            sections.append(f"**{category}:** {', '.join(formatted_items)}")
             sections.append("")
 
     # Languages
     if languages := cv_data.get("languages"):
         sections.append("## Languages\n")
-        lang_items = [
-            f"**{lang['language']}**: {lang['proficiency']}" for lang in languages
-        ]
+        lang_items = []
+        for lang in languages:
+            if isinstance(lang, dict):
+                language = lang.get("language", "")
+                proficiency = lang.get("proficiency", "")
+                lang_items.append(f"**{language}**: {proficiency}")
         sections.append(", ".join(lang_items))
 
     return "\n".join(sections)
@@ -293,6 +285,15 @@ def create_pdf(markdown_content: str, output_path: str) -> None:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def generate_random_code(length: int = 6) -> str:
+    """Generate a random alphanumeric code."""
+    try:
+        return "".join(random.choices(string.ascii_uppercase + string.digits, k=length))
+    except Exception as e:
+        logger.error(f"Error generating random code: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/upload")
 async def upload_files(
     cv_file: UploadFile = File(...), job_description: str = Form(...)
@@ -315,19 +316,31 @@ async def upload_files(
         # Generate markdown
         markdown_content = generate_markdown(cv_data)
 
-        # Create output file
+        # Create output file with random code
         output_dir = os.path.join(os.path.dirname(__file__), CONFIG["PATHS"]["OUTPUT"])
         os.makedirs(output_dir, exist_ok=True)
 
-        output_filename = f"optimized_cv_{int(time.time())}.pdf"
+        random_code = generate_random_code()
+        timestamp = int(time.time())
+        output_filename = f"optimized_cv_{timestamp}_{random_code}.pdf"
         output_path = os.path.join(output_dir, output_filename)
 
         create_pdf(markdown_content, output_path)
 
+        # URL encode the filename and add both filename and filename* parameters
+        encoded_filename = output_filename.encode("utf-8").decode("latin-1")
+        headers = {
+            "Content-Disposition": f"attachment; filename=\"{encoded_filename}\"; filename*=UTF-8''{encoded_filename}",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+
         return FileResponse(
-            output_path,
+            path=output_path,
             media_type="application/pdf",
             filename=output_filename,
+            headers=headers,
             background=BackgroundTask(lambda: os.remove(output_path)),
         )
 
