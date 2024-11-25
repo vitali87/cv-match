@@ -445,6 +445,29 @@
         .coffee-emoji {
             font-size: 1.2em;
         }
+
+        /* Icon styles */
+        .icon-web {
+            width: 20px;
+            height: 20px;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 4px;
+            background-image: url('https://img.icons8.com/doodle/48/domain.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+        
+        .icon-job {
+            width: 20px;
+            height: 20px;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 4px;
+            background-image: url('https://img.icons8.com/emoji/48/briefcase-emoji.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
     </style>
 </head>
 
@@ -487,13 +510,13 @@
 
             <div class="form-section">
                 <label for="jobDescription" class="form-label">
-                    🏛️ Job Description
+                    <span class="icon-job"></span>Job Description
                 </label>
                 <textarea class="form-control" id="jobDescription" name="jobDescription" rows="4" required></textarea>
             </div>
 
             <div class="form-section">
-                <label for="personal_website" class="form-label">🌐 Personal Website <span class="optional-label">(Optional)</span></label>
+                <label for="personal_website" class="form-label"><span class="icon-web"></span>Personal Website <span class="optional-label">(Optional)</span></label>
                 <input type="url" class="form-control" id="personal_website" name="personal_website" placeholder="https://your-website.com">
             </div>
 
