@@ -51,32 +51,39 @@
     <h1>CV Optimizer</h1>
     <form id="uploadForm" enctype="multipart/form-data">
         <div class="form-group">
-            <label for="cv_file">Upload your CV (PDF or DOCX):</label>
-            <input type="file" id="cv_file" name="cv_file" accept=".pdf,.docx" required>
+            <label for="cv_file">Upload CV (PDF or DOCX):</label>
+            <input type="file" class="form-control" id="cv_file" name="cv_file" accept=".pdf,.docx" required>
+        </div>
+
+        <div class="form-group">
+            <label for="scholar_url">Google Scholar URL (optional):</label>
+            <input type="text" class="form-control" id="scholar_url" name="scholar_url">
         </div>
 
         <div class="form-group">
             <label for="job_description">Job Description:</label>
-            <textarea id="job_description" name="job_description" required></textarea>
+            <textarea class="form-control" id="job_description" name="job_description" rows="4" required></textarea>
         </div>
 
-        <button type="submit">Optimize CV</button>
+        <button type="submit" class="btn btn-primary">Generate CV</button>
     </form>
 
     <div id="loading">Processing your CV...</div>
 
     <script>
-        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+        document.querySelector('form').addEventListener('submit', async function (e) {
             e.preventDefault();
 
             const formData = new FormData();
-            const cvFile = document.getElementById('cv_file').files[0];
-            const jobDescription = document.getElementById('job_description').value;
+            const cvFile = document.querySelector('input[type="file"]').files[0];
+            const jobDescription = document.querySelector('textarea[name="job_description"]').value;
+            const scholarUrl = document.querySelector('#scholar_url').value;
 
             formData.append('cv_file', cvFile);
             formData.append('job_description', jobDescription);
-
-            document.getElementById('loading').style.display = 'block';
+            if (scholarUrl) {
+                formData.append('scholar_url', scholarUrl);
+            }
 
             try {
                 const response = await fetch('/upload', {
@@ -89,25 +96,15 @@
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-
-                    // Get filename from Content-Disposition header
-                    const contentDisposition = response.headers.get('Content-Disposition');
-                    const filenameMatch = contentDisposition && contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-                    const filename = filenameMatch && filenameMatch[1] ? filenameMatch[1].replace(/['"]/g, '') : 'optimized_cv.pdf';
-
-                    a.download = filename;
+                    a.download = response.headers.get('content-disposition').split('filename=')[1].replace(/"/g, '');
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(url);
-                    a.remove();
                 } else {
-                    const error = await response.json();
-                    alert('Error: ' + JSON.stringify(error));
+                    console.error('Upload failed');
                 }
             } catch (error) {
-                alert('Error: ' + error.message);
-            } finally {
-                document.getElementById('loading').style.display = 'none';
+                console.error('Error:', error);
             }
         });
     </script>

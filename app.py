@@ -80,7 +80,13 @@ def parse_cv_with_llm(cv_text: str, job_description: str) -> dict:
     """Use Claude to parse and structure CV content."""
     try:
         system_prompt = """You are a CV parsing expert. Your task is to parse the CV text and return ONLY a JSON object.
-The JSON MUST be valid and follow this exact structure:
+
+Important Instructions:
+
+- **Do not alter any personal contact details**, including names, emails, phone numbers, addresses, and **URLs**. These should be extracted exactly as they appear in the CV.
+- **Do not generate or infer any new contact information**.
+- The JSON MUST be valid and follow this exact structure:
+
 {
     "profile": {
         "name": "string",
@@ -136,7 +142,14 @@ The JSON MUST be valid and follow this exact structure:
             messages=[
                 {
                     "role": "user",
-                    "content": f"""Parse this CV and optimize it for the following job description by changing or adding wording to match the keywords mentioned in the description. Ensure that skills required in the job description are deduced from my CV without providing any false information. Return ONLY the JSON object, no additional text or explanations.
+                    "content": f"""Parse this CV and optimize it for the following job description by changing or adding wording to match the keywords mentioned in the description.
+
+**Important Instructions:**
+
+- **Do not alter any personal contact details**, including names, emails, phone numbers, addresses, and **URLs**. These should be extracted exactly as they appear in the CV.
+- **Do not generate or infer any new contact information**.
+- **Ensure that skills required in the job description are deduced from my CV without providing any false information**.
+- **Return ONLY the JSON object**, no additional text or explanations.
 
 Job Description:
 {job_description}
@@ -161,8 +174,8 @@ def generate_markdown(cv_data: dict) -> str:
     sections = [
         """---
 header-includes:
-    - \\usepackage{xcolor}
-    - \\usepackage[colorlinks=true,urlcolor=blue,linkcolor=blue]{hyperref}
+    - '\\usepackage{xcolor}'
+    - '\\usepackage[colorlinks=true,urlcolor=blue,linkcolor=blue]{hyperref}'
 ---
 
 """
@@ -193,8 +206,16 @@ header-includes:
             link_items = []
             for link in links:
                 platform = link.get("platform", "")
-                url = link.get("url", "")
-                # Using LaTeX \href command
+                url = link.get("url", "").strip()
+
+                logger.info(f"BEFORE - Platform: {platform}, Original URL: {url}")
+
+                # Remove any @ symbol if it exists at the start of the URL
+                url = url.lstrip("@")
+
+                logger.info(f"AFTER - Platform: {platform}, Processed URL: {url}")
+                logger.info(f"Generated LaTeX link: \\href{{{url}}}{{{platform}}}")
+
                 link_items.append(f"\\href{{{url}}}{{{platform}}}")
             if link_items:
                 sections.append(f"{' • '.join(link_items)}\n")
@@ -311,10 +332,14 @@ def generate_random_code(length: int = 6) -> str:
 
 @app.post("/upload")
 async def upload_files(
-    cv_file: UploadFile = File(...), job_description: str = Form(...)
+    cv_file: UploadFile = File(...),
+    job_description: str = Form(...),
+    scholar_url: str = Form(None),
 ):
     """Process uploaded CV and generate optimized version."""
     with tempfile.TemporaryDirectory() as temp_dir:
+        logger.info(f"Received scholar_url from frontend: {scholar_url}")
+
         # Save uploaded file
         file_path = os.path.join(temp_dir, cv_file.filename)
         with open(file_path, "wb") as f:
@@ -328,8 +353,34 @@ async def upload_files(
         # Process with LLM
         cv_data = parse_cv_with_llm(cv_text, job_description)
 
+        logger.info("Links before override:")
+        for link in cv_data["profile"]["links"]:
+            logger.info(f"Platform: {link['platform']}, URL: {link['url']}")
+
+        # Override Google Scholar URL if provided
+        if scholar_url:
+            logger.info(f"Attempting to override with scholar_url: {scholar_url}")
+            # Remove any existing Google Scholar link
+            cv_data["profile"]["links"] = [
+                link
+                for link in cv_data["profile"]["links"]
+                if link["platform"] != "Google Scholar"
+            ]
+            # Add the new Google Scholar link
+            cv_data["profile"]["links"].append(
+                {"platform": "Google Scholar", "url": scholar_url.strip()}
+            )
+
+            logger.info("Links after override:")
+            for link in cv_data["profile"]["links"]:
+                logger.info(f"Platform: {link['platform']}, URL: {link['url']}")
+
         # Generate markdown
         markdown_content = generate_markdown(cv_data)
+
+        # Log the first few lines of markdown content to see what URLs made it through
+        logger.info("First 500 characters of markdown content:")
+        logger.info(markdown_content[:500])
 
         # Create output file with random code
         output_dir = os.path.join(os.path.dirname(__file__), CONFIG["PATHS"]["OUTPUT"])
