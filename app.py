@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 import pypdf
 import random
 import string
+from typing import Optional
 
 # Load environment variables and configure logging
 load_dotenv(override=True)
@@ -44,7 +45,7 @@ def init_anthropic_client():
         client = Anthropic(api_key=api_key)
         # Test the client with a simple request
         client.messages.create(
-            model="claude-3-sonnet-20240229",
+            model="claude-3-5-sonnet-20241022",
             max_tokens=10,
             messages=[{"role": "user", "content": "test"}],
         )
@@ -76,8 +77,10 @@ def extract_text(file_path: str, file_type: str) -> str:
         raise HTTPException(status_code=400, detail=f"Error extracting text: {str(e)}")
 
 
-def parse_cv_with_llm(cv_text: str, job_description: str) -> dict:
-    """Use Claude to parse and structure CV content."""
+def parse_cv_with_llm(
+    cv_text: str, job_description: str, scholar_url: Optional[str] = None
+) -> dict:
+    """Use Claude to parse and enhance CV content."""
     try:
         system_prompt = """You are a CV parsing expert. Your task is to parse the CV text and return ONLY a JSON object.
 
@@ -134,35 +137,56 @@ Important Instructions:
     ]
 }"""
 
-        response = client.messages.create(
-            model="claude-3-sonnet-20240229",
-            max_tokens=4096,
-            temperature=0,
-            system=system_prompt,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"""Parse this CV and optimize it for the following job description by changing or adding wording to match the keywords mentioned in the description.
+        user_content = f"""Parse this CV and enhance it to align closely with the following job description. Focus on highlighting and emphasizing the relevant skills, experiences, and qualifications that match the job requirements. Use keywords and phrases from the job description where appropriate to showcase the alignment.
 
 **Important Instructions:**
 
 - **Do not alter any personal contact details**, including names, emails, phone numbers, addresses, and **URLs**. These should be extracted exactly as they appear in the CV.
 - **Do not generate or infer any new contact information**.
-- **Ensure that skills required in the job description are deduced from my CV without providing any false information**.
+- **Ensure that the skills and experiences required in the job description are clearly reflected in the CV content, based on the information provided in the CV. Do not fabricate or include any information that is not present in the CV.**
+- **Rephrase or enhance existing descriptions in the CV to use keywords and phrases from the job description, where applicable, to strengthen the alignment.**
 - **Return ONLY the JSON object**, no additional text or explanations.
 
 Job Description:
 {job_description}
 
 CV Text:
-{cv_text}""",
+{cv_text}"""
+
+        if scholar_url:
+            user_content += f"\nGoogle Scholar URL:\n{scholar_url}"
+
+        response = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=4096,
+            temperature=0,
+            system=system_prompt,
+            messages=[
+                {
+                    "role": "user",
+                    "content": user_content,
                 }
             ],
         )
 
+        # Ensure that response content exists
+        if not response.content or not response.content[0].text.strip():
+            logger.error("Empty response received from Anthropic API.")
+            raise HTTPException(
+                status_code=500, detail="Empty response received from language model."
+            )
+
         # Get the response text and parse it
         response_text = response.content[0].text.strip()
-        return json.loads(response_text)
+        try:
+            parsed_response = json.loads(response_text)
+            return parsed_response
+        except json.JSONDecodeError as json_err:
+            logger.error(f"JSON decoding failed: {json_err}")
+            logger.error(f"Response Text: {response_text}")
+            raise HTTPException(
+                status_code=500, detail="Invalid JSON response from language model."
+            )
 
     except Exception as e:
         logger.error(f"Error parsing CV with LLM: {str(e)}")
@@ -171,154 +195,126 @@ CV Text:
 
 def generate_markdown(cv_data: dict) -> str:
     """Convert structured CV data to markdown format."""
-    sections = [
-        """---
-header-includes:
-    - '\\usepackage{xcolor}'
-    - '\\usepackage[colorlinks=true,urlcolor=blue,linkcolor=blue]{hyperref}'
----
+    sections = []
 
-"""
-    ]
+    # Profile Section
+    profile = cv_data.get("profile", {})
+    sections.append(f"# {profile.get('name', 'Your Name')}")
+    sections.append(f"**{profile.get('title', 'Your Title')}**\n")
 
-    # Profile Section with improved formatting
-    if profile := cv_data.get("profile"):
-        # Name and Title with clean spacing
-        name = profile.get("name", "").upper()
-        title = profile.get("title", "")
-        sections.append(f"# {name}")
-        sections.append(f"_{title}_\n")
+    # Contact Information
+    contact = profile.get("contact", {})
+    contact_info = f"- Email: {contact.get('email', 'email@example.com')}\n- Phone: {contact.get('phone', '123-456-7890')}\n- Location: {contact.get('location', 'Your Location')}"
+    sections.append(contact_info + "\n")
 
-        # Contact details in a clean, single line
-        if contact := profile.get("contact"):
-            contact_items = []
-            if email := contact.get("email"):
-                contact_items.append(f"{email}")
-            if phone := contact.get("phone"):
-                contact_items.append(f"{phone}")
-            if location := contact.get("location"):
-                contact_items.append(f"{location}")
-            if contact_items:
-                sections.append(f"{' • '.join(contact_items)}\n")
+    sections.append(f"{profile.get('summary', 'A brief summary about yourself.')}\n")
 
-        # Professional links with LaTeX formatting
-        if links := profile.get("links"):
-            link_items = []
-            for link in links:
-                platform = link.get("platform", "")
-                url = link.get("url", "").strip()
-
-                logger.info(f"BEFORE - Platform: {platform}, Original URL: {url}")
-
-                # Remove any @ symbol if it exists at the start of the URL
-                url = url.lstrip("@")
-
-                logger.info(f"AFTER - Platform: {platform}, Processed URL: {url}")
-                logger.info(f"Generated LaTeX link: \\href{{{url}}}{{{platform}}}")
-
-                link_items.append(f"\\href{{{url}}}{{{platform}}}")
-            if link_items:
-                sections.append(f"{' • '.join(link_items)}\n")
-
-        # Professional summary with proper spacing
-        if summary := profile.get("summary"):
-            sections.append(f"{summary}\n")
-
-        sections.append("---\n")
+    # Links (e.g., GitHub, LinkedIn, Google Scholar)
+    links = profile.get("links", [])
+    if links:
+        sections.append("## Links")
+        for link in links:
+            platform = link.get("platform", "")
+            url = link.get("url", "")
+            if platform and url:
+                sections.append(f"- [{platform}]({url})")
+        sections.append("")  # Add an empty line for spacing
 
     # Work Experience
-    if work_exp := cv_data.get("work_experience"):
-        sections.append("## Professional Experience\n")
-        for job in work_exp:
-            sections.append(f"### {job['title']} | {job['company']}")
-            sections.append(f"_{job['date']}_")
-            for achievement in job.get("achievements", []):
-                sections.append(f"* {achievement}")
-            sections.append("")
+    work_experience = cv_data.get("work_experience", [])
+    if work_experience:
+        sections.append("## Work Experience")
+        for experience in work_experience:
+            title = experience.get("title", "Job Title")
+            company = experience.get("company", "Company Name")
+            date = experience.get("date", "Date Range")
+            achievements = experience.get("achievements", [])
+            sections.append(f"### {title} at {company}")
+            sections.append(f"*{date}*")
+            for achievement in achievements:
+                sections.append(f"- {achievement}")
+            sections.append("")  # Add an empty line for spacing
 
     # Education
-    if education := cv_data.get("education"):
-        sections.append("## Education\n")
+    education = cv_data.get("education", [])
+    if education:
+        sections.append("## Education")
         for edu in education:
-            sections.append(f"### {edu['degree']} | {edu['institution']}")
-            sections.append(f"_{edu['date']}_")
-            for detail in edu.get("details", []):
-                sections.append(f"* {detail}")
-            sections.append("")
+            degree = edu.get("degree", "Degree")
+            institution = edu.get("institution", "Institution Name")
+            date = edu.get("date", "Date Range")
+            details = edu.get("details", [])
+            sections.append(f"### {degree}, {institution}")
+            sections.append(f"*{date}*")
+            for detail in details:
+                sections.append(f"- {detail}")
+            sections.append("")  # Add an empty line for spacing
 
-    # Skills with improved error handling
-    if skills := cv_data.get("skills"):
-        sections.append("## Technical Skills\n")
+    # Skills
+    skills = cv_data.get("skills", [])
+    if skills:
+        sections.append("## Skills")
         for skill in skills:
-            category = skill.get("category", "")
+            category = skill.get("category", "Category")
             items = skill.get("items", [])
-            # Handle cases where items might be dictionaries or strings
-            formatted_items = []
-            for item in items:
-                if isinstance(item, dict):
-                    # If item is a dictionary, extract the relevant value
-                    # Adjust the key based on your actual data structure
-                    formatted_items.append(
-                        str(
-                            item.get("name", "")
-                            or item.get("skill", "")
-                            or item.get("value", "")
-                        )
-                    )
-                else:
-                    formatted_items.append(str(item))
-            sections.append(f"**{category}:** {', '.join(formatted_items)}")
-            sections.append("")
+            sections.append(f"### {category}")
+            sections.append(", ".join(items))
+            sections.append("")  # Add an empty line for spacing
 
     # Languages
-    if languages := cv_data.get("languages"):
-        sections.append("## Languages\n")
+    languages = cv_data.get("languages", [])
+    if languages:
+        sections.append("## Languages")
         lang_items = []
         for lang in languages:
-            if isinstance(lang, dict):
-                language = lang.get("language", "")
-                proficiency = lang.get("proficiency", "")
+            language = lang.get("language", "")
+            proficiency = lang.get("proficiency", "")
+            if language and proficiency:
                 lang_items.append(f"**{language}**: {proficiency}")
         sections.append(", ".join(lang_items))
+        sections.append("")  # Add an empty line for spacing
 
     return "\n".join(sections)
 
 
 def create_pdf(markdown_content: str, output_path: str) -> None:
-    """Convert markdown to PDF using pandoc."""
+    """Convert markdown to PDF using pandoc with XeLaTeX for Unicode support."""
     try:
         md_file = output_path[:-4] + ".md"
-        with open(md_file, "w") as f:
+        with open(md_file, "w", encoding="utf-8") as f:
             f.write(markdown_content)
 
-        subprocess.run(
-            [
-                "pandoc",
-                md_file,
-                "-o",
-                output_path,
-                "--pdf-engine=xelatex",
-                "-V",
-                f"geometry:margin={CONFIG['PDF_SETTINGS']['MARGIN']}",
-                "-V",
-                f"fontsize={CONFIG['PDF_SETTINGS']['FONT_SIZE']}",
-                "-V",
-                f"linestretch={CONFIG['PDF_SETTINGS']['LINE_SPACING']}",
-                "--standalone",
-                "--variable",
-                "colorlinks=true",
-                "--variable",
-                "urlcolor=blue",
-                "--variable",
-                "linkcolor=blue",
-            ],
-            check=True,
-        )
+        # Use XeLaTeX to handle Unicode characters with wider margins
+        pandoc_command = [
+            "pandoc",
+            md_file,
+            "-o",
+            output_path,
+            "--pdf-engine=xelatex",
+            "-V",
+            "geometry:margin=0.5in",
+            "--variable",
+            "colorlinks=true",
+            "--variable",
+            "linkcolor=blue",
+            "--variable",
+            "urlcolor=blue"
+        ]
 
+        result = subprocess.run(pandoc_command, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            logger.error(f"Pandoc error: {result.stderr}")
+            raise HTTPException(
+                status_code=500, detail=f"Error creating PDF: {result.stderr}"
+            )
+
+        # Optionally, remove the markdown file after successful PDF creation
         os.remove(md_file)
+
     except Exception as e:
         logger.error(f"Error creating PDF: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error creating PDF: {str(e)}")
 
 
 def generate_random_code(length: int = 6) -> str:
@@ -334,7 +330,7 @@ def generate_random_code(length: int = 6) -> str:
 async def upload_files(
     cv_file: UploadFile = File(...),
     job_description: str = Form(...),
-    scholar_url: str = Form(None),
+    scholar_url: Optional[str] = Form(None),
 ):
     """Process uploaded CV and generate optimized version."""
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -351,7 +347,7 @@ async def upload_files(
         cv_text = extract_text(file_path, file_type)
 
         # Process with LLM
-        cv_data = parse_cv_with_llm(cv_text, job_description)
+        cv_data = parse_cv_with_llm(cv_text, job_description, scholar_url)
 
         logger.info("Links before override:")
         for link in cv_data["profile"]["links"]:
