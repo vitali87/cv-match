@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CV Match</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
@@ -416,10 +417,48 @@
             background: rgba(74, 144, 226, 0.5) !important;
             color: white !important;
         }
+
+        /* Buy Me a Coffee button */
+        .coffee-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #B8860B 0%, #806000 100%);
+            color: #ffffff;
+            padding: 8px 16px;
+            border-radius: 24px;
+            text-decoration: none;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            border: none;
+            box-shadow: 0 4px 15px rgba(184, 134, 11, 0.2);
+            z-index: 1000;
+        }
+
+        .coffee-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(184, 134, 11, 0.3);
+            color: #ffffff;
+        }
+
+        .coffee-button:active {
+            transform: translateY(0);
+        }
+
+        .coffee-emoji {
+            font-size: 1.2em;
+        }
     </style>
 </head>
 
 <body>
+    <a href="https://buymeacoffee.com/vitali87" target="_blank" class="coffee-button">
+        <span class="coffee-emoji">☕</span>
+        Buy me a coffee
+    </a>
     <!-- Space Background -->
     <div class="space-background">
         <div class="stars"></div>
