@@ -393,10 +393,9 @@ async def upload_files(
 
         create_pdf(markdown_content, output_path)
 
-        # URL encode the filename and add both filename and filename* parameters
-        encoded_filename = output_filename.encode("utf-8").decode("latin-1")
+        # Simplify the Content-Disposition header
         headers = {
-            "Content-Disposition": f"attachment; filename=\"{encoded_filename}\"; filename*=UTF-8''{encoded_filename}",
+            "Content-Disposition": f'attachment; filename="{output_filename}"',
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
             "Expires": "0",
