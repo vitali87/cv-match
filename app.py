@@ -195,7 +195,15 @@ CV Text:
 
 def generate_markdown(cv_data: dict) -> str:
     """Convert structured CV data to markdown format."""
-    sections = []
+    sections = [
+        """---
+header-includes:
+    - \\usepackage{xcolor}
+    - \\usepackage[colorlinks=true,urlcolor=blue,linkcolor=blue]{hyperref}
+---
+
+"""
+    ]
 
     # Profile Section
     profile = cv_data.get("profile", {})
@@ -204,22 +212,37 @@ def generate_markdown(cv_data: dict) -> str:
 
     # Contact Information
     contact = profile.get("contact", {})
-    contact_info = f"- Email: {contact.get('email', 'email@example.com')}\n- Phone: {contact.get('phone', '123-456-7890')}\n- Location: {contact.get('location', 'Your Location')}"
-    sections.append(contact_info + "\n")
+    contact_info = []
+    if email := contact.get("email"):
+        contact_info.append(email)
+    if phone := contact.get("phone"):
+        contact_info.append(phone)
+    if location := contact.get("location"):
+        contact_info.append(location)
+    if contact_info:
+        sections.append(" • ".join(contact_info) + "\n")
 
-    sections.append(f"{profile.get('summary', 'A brief summary about yourself.')}\n")
-
-    # Links (e.g., GitHub, LinkedIn, Google Scholar)
+    # Links with URL validation
     links = profile.get("links", [])
     if links:
-        sections.append("## Links")
+        link_items = []
         for link in links:
             platform = link.get("platform", "")
             url = link.get("url", "")
             if platform and url:
-                sections.append(f"- [{platform}]({url})")
-        sections.append("")  # Add an empty line for spacing
-        sections.append("\\rule{\\linewidth}{0.5pt}\n")  # LaTeX horizontal line with text width
+                # Ensure URLs are properly formatted
+                if platform == "LinkedIn" and not url.startswith("https://www.linkedin.com/"):
+                    url = f"https://www.linkedin.com/in/{url.split('/')[-1]}"
+                elif platform == "GitHub" and not url.startswith("https://github.com/"):
+                    url = f"https://github.com/{url.split('/')[-1]}"
+                link_items.append(f"[{platform}]({url})")
+        if link_items:
+            sections.append(" • ".join(link_items) + "\n")
+
+    if summary := profile.get("summary"):
+        sections.append(f"{summary}\n")
+
+    sections.append("\\rule{\\linewidth}{0.5pt}\n")
 
     # Work Experience
     work_experience = cv_data.get("work_experience", [])
@@ -285,30 +308,29 @@ def create_pdf(markdown_content: str, output_path: str) -> None:
         with open(md_file, "w", encoding="utf-8") as f:
             f.write(markdown_content)
 
-        # Use XeLaTeX to handle Unicode characters with wider margins
-        pandoc_command = [
-            "pandoc",
-            md_file,
-            "-o",
-            output_path,
-            "--pdf-engine=xelatex",
-            "-V",
-            "geometry:margin=0.5in",
-            "--variable",
-            "colorlinks=true",
-            "--variable",
-            "linkcolor=blue",
-            "--variable",
-            "urlcolor=blue"
-        ]
-
-        result = subprocess.run(pandoc_command, capture_output=True, text=True)
-
-        if result.returncode != 0:
-            logger.error(f"Pandoc error: {result.stderr}")
-            raise HTTPException(
-                status_code=500, detail=f"Error creating PDF: {result.stderr}"
-            )
+        subprocess.run(
+            [
+                "pandoc",
+                md_file,
+                "-o",
+                output_path,
+                "--pdf-engine=xelatex",
+                "-V",
+                f"geometry:margin={CONFIG['PDF_SETTINGS']['MARGIN']}",
+                "-V",
+                f"fontsize={CONFIG['PDF_SETTINGS']['FONT_SIZE']}",
+                "-V",
+                f"linestretch={CONFIG['PDF_SETTINGS']['LINE_SPACING']}",
+                "--standalone",
+                "--variable",
+                "colorlinks=true",
+                "--variable",
+                "urlcolor=blue",
+                "--variable",
+                "linkcolor=blue"
+            ],
+            check=True,
+        )
 
         # Optionally, remove the markdown file after successful PDF creation
         os.remove(md_file)
