@@ -6,3 +6,4 @@ venv/
 output
 k8s/
 Dockerfile
+deploy.sh
