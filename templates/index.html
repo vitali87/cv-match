@@ -331,21 +331,15 @@
         .spinner {
             width: 50px;
             height: 50px;
-            border: 5px solid #f3f3f3;
+            border: 5px solid rgba(255, 255, 255, 0.1);
             border-top: 5px solid #3498db;
             border-radius: 50%;
-            animation: spin 1s linear infinite, scaleIn 0.3s ease;
+            animation: spin 1s linear infinite;
         }
 
-        @keyframes scaleIn {
-            from {
-                transform: scale(0.5) rotate(0deg);
-                opacity: 0;
-            }
-            to {
-                transform: scale(1) rotate(360deg);
-                opacity: 1;
-            }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         /* Navbar styles */
@@ -499,6 +493,11 @@
             </div>
 
             <div class="form-section">
+                <label for="personal_website" class="form-label">🌐 Personal Website <span class="optional-label">(Optional)</span></label>
+                <input type="url" class="form-control" id="personal_website" name="personal_website" placeholder="https://your-website.com">
+            </div>
+
+            <div class="form-section">
                 <label for="scholar_url" class="form-label">🎓 Google Scholar URL <span class="optional-label">(Optional)</span></label>
                 <input type="url" class="form-control" id="scholar_url" name="scholar_url" placeholder="https://scholar.google.com/...">
             </div>
@@ -551,11 +550,15 @@
             const cvFile = document.querySelector('input[name="cvFile"]').files[0];
             const jobDescription = document.querySelector('textarea[name="jobDescription"]').value;
             const scholarUrl = document.querySelector('#scholar_url').value;
+            const personalWebsite = document.querySelector('#personal_website').value;
 
             formData.append('cv_file', cvFile);
             formData.append('job_description', jobDescription);
             if (scholarUrl) {
                 formData.append('scholar_url', scholarUrl);
+            }
+            if (personalWebsite) {
+                formData.append('personal_website', personalWebsite);
             }
 
             try {

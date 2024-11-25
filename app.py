@@ -78,7 +78,7 @@ def extract_text(file_path: str, file_type: str) -> str:
 
 
 def parse_cv_with_llm(
-    cv_text: str, job_description: str, scholar_url: Optional[str] = None
+    cv_text: str, job_description: str, scholar_url: Optional[str] = None, personal_website: Optional[str] = None
 ) -> dict:
     """Use Claude to parse and enhance CV content."""
     try:
@@ -151,10 +151,13 @@ Job Description:
 {job_description}
 
 CV Text:
-{cv_text}"""
+{cv_text}
 
-        if scholar_url:
-            user_content += f"\nGoogle Scholar URL:\n{scholar_url}"
+Personal Website:
+{personal_website if personal_website else "Not provided"}
+
+Google Scholar URL:
+{scholar_url if scholar_url else "Not provided"}"""
 
         response = client.messages.create(
             model="claude-3-5-sonnet-20241022",
@@ -354,6 +357,7 @@ async def upload_files(
     cv_file: UploadFile = File(...),
     job_description: str = Form(...),
     scholar_url: Optional[str] = Form(None),
+    personal_website: Optional[str] = Form(None),
 ):
     """Process uploaded CV and generate optimized version."""
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -370,7 +374,7 @@ async def upload_files(
         cv_text = extract_text(file_path, file_type)
 
         # Process with LLM
-        cv_data = parse_cv_with_llm(cv_text, job_description, scholar_url)
+        cv_data = parse_cv_with_llm(cv_text, job_description, scholar_url, personal_website)
 
         logger.info("Links before override:")
         for link in cv_data["profile"]["links"]:
