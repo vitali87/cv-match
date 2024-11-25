@@ -44,6 +44,44 @@
             display: none;
             margin-top: 20px;
         }
+
+        .spinner-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .spinner-text {
+            margin-top: 20px;
+            font-size: 18px;
+            color: #333;
+        }
     </style>
 </head>
 
@@ -68,11 +106,19 @@
         <button type="submit" class="btn btn-primary">Generate CV</button>
     </form>
 
-    <div id="loading">Processing your CV...</div>
+    <div class="spinner-overlay">
+        <div class="text-center">
+            <div class="spinner"></div>
+            <div class="spinner-text">Generating CV...</div>
+        </div>
+    </div>
 
     <script>
         document.querySelector('form').addEventListener('submit', async function (e) {
             e.preventDefault();
+
+            // Show spinner
+            document.querySelector('.spinner-overlay').style.display = 'flex';
 
             const formData = new FormData();
             const cvFile = document.querySelector('input[type="file"]').files[0];
@@ -102,9 +148,14 @@
                     window.URL.revokeObjectURL(url);
                 } else {
                     console.error('Upload failed');
+                    alert('Failed to generate CV. Please try again.');
                 }
             } catch (error) {
                 console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            } finally {
+                // Hide spinner
+                document.querySelector('.spinner-overlay').style.display = 'none';
             }
         });
     </script>
