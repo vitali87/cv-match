@@ -158,7 +158,15 @@ CV Text:
 
 def generate_markdown(cv_data: dict) -> str:
     """Convert structured CV data to markdown format."""
-    sections = []
+    sections = [
+        """---
+header-includes:
+    - \\usepackage{xcolor}
+    - \\usepackage[colorlinks=true,urlcolor=blue,linkcolor=blue]{hyperref}
+---
+
+"""
+    ]
 
     # Profile Section with improved formatting
     if profile := cv_data.get("profile"):
@@ -180,13 +188,14 @@ def generate_markdown(cv_data: dict) -> str:
             if contact_items:
                 sections.append(f"{' • '.join(contact_items)}\n")
 
-        # Professional links on their own line
+        # Professional links with LaTeX formatting
         if links := profile.get("links"):
             link_items = []
             for link in links:
                 platform = link.get("platform", "")
                 url = link.get("url", "")
-                link_items.append(f"[{platform}]({url})")
+                # Using LaTeX \href command
+                link_items.append(f"\\href{{{url}}}{{{platform}}}")
             if link_items:
                 sections.append(f"{' • '.join(link_items)}\n")
 
@@ -275,6 +284,12 @@ def create_pdf(markdown_content: str, output_path: str) -> None:
                 "-V",
                 f"linestretch={CONFIG['PDF_SETTINGS']['LINE_SPACING']}",
                 "--standalone",
+                "--variable",
+                "colorlinks=true",
+                "--variable",
+                "urlcolor=blue",
+                "--variable",
+                "linkcolor=blue",
             ],
             check=True,
         )
@@ -322,7 +337,7 @@ async def upload_files(
 
         random_code = generate_random_code()
         timestamp = int(time.time())
-        output_filename = f"optimized_cv_{timestamp}_{random_code}.pdf"
+        output_filename = f"cv_{timestamp}_{random_code}.pdf"
         output_path = os.path.join(output_dir, output_filename)
 
         create_pdf(markdown_content, output_path)
