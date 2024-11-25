@@ -219,6 +219,7 @@ def generate_markdown(cv_data: dict) -> str:
             if platform and url:
                 sections.append(f"- [{platform}]({url})")
         sections.append("")  # Add an empty line for spacing
+        sections.append("\\rule{\\linewidth}{0.5pt}\n")  # LaTeX horizontal line with text width
 
     # Work Experience
     work_experience = cv_data.get("work_experience", [])
