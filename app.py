@@ -1,7 +1,8 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
-from fastapi import Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 import uvicorn
 import tempfile
 import os
@@ -32,7 +33,12 @@ CONFIG = {
 }
 
 app = FastAPI()
-templates = Jinja2Templates(directory=CONFIG["PATHS"]["TEMPLATES"])
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Templates configuration
+templates = Jinja2Templates(directory="templates")
 
 
 # Initialize Anthropic client with better error handling
@@ -200,9 +206,9 @@ def generate_markdown(cv_data: dict) -> str:
     """Convert structured CV data to markdown format."""
     sections = [
         """---
-header-includes:
-    - \\usepackage{xcolor}
-    - \\usepackage[colorlinks=true,urlcolor=blue,linkcolor=blue]{hyperref}
+geometry: margin=0.75in
+fontsize: 10pt
+linestretch: 1.15
 ---
 
 """
@@ -305,42 +311,34 @@ header-includes:
 
 
 def create_pdf(markdown_content: str, output_path: str) -> None:
-    """Convert markdown to PDF using pandoc with XeLaTeX for Unicode support."""
+    """Convert markdown to PDF using pandoc."""
     try:
-        md_file = output_path[:-4] + ".md"
-        with open(md_file, "w", encoding="utf-8") as f:
-            f.write(markdown_content)
+        with tempfile.NamedTemporaryFile(suffix='.md', mode='w', delete=False) as temp_md:
+            temp_md.write(markdown_content)
+            temp_md_path = temp_md.name
 
-        subprocess.run(
-            [
-                "pandoc",
-                md_file,
-                "-o",
-                output_path,
-                "--pdf-engine=xelatex",
-                "-V",
-                f"geometry:margin={CONFIG['PDF_SETTINGS']['MARGIN']}",
-                "-V",
-                f"fontsize={CONFIG['PDF_SETTINGS']['FONT_SIZE']}",
-                "-V",
-                f"linestretch={CONFIG['PDF_SETTINGS']['LINE_SPACING']}",
-                "--standalone",
-                "--variable",
-                "colorlinks=true",
-                "--variable",
-                "urlcolor=blue",
-                "--variable",
-                "linkcolor=blue"
-            ],
-            check=True,
-        )
+        cmd = [
+            'pandoc',
+            temp_md_path,
+            '-o', output_path,
+            '--pdf-engine=xelatex',
+            '--variable', 'colorlinks=true',
+            '--variable', 'urlcolor=blue',
+            '--variable', 'linkcolor=blue',
+            '--standalone'
+        ]
 
-        # Optionally, remove the markdown file after successful PDF creation
-        os.remove(md_file)
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            logger.error(f"Pandoc error: {result.stderr}")
+            raise Exception(f"Error producing PDF: {result.stderr}")
 
     except Exception as e:
         logger.error(f"Error creating PDF: {e}")
-        raise HTTPException(status_code=500, detail=f"Error creating PDF: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'temp_md_path' in locals():
+            os.unlink(temp_md_path)
 
 
 def generate_random_code(length: int = 6) -> str:
@@ -433,9 +431,25 @@ async def upload_files(
         )
 
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.get("/test")
+async def test():
+    return {"message": "API is working"}
+
+
+@app.get("/debug")
+async def debug(request: Request):
+    try:
+        # Try to load and return the raw template content
+        template = templates.get_template("index.html")
+        content = template.render({"request": request})
+        return HTMLResponse(content=content)
+    except Exception as e:
+        return {"error": str(e), "type": str(type(e))}
 
 
 if __name__ == "__main__":
