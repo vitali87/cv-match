@@ -136,18 +136,12 @@
         }
 
         /* Input field styling with enhanced interactions */
-        .form-control {
+        input.form-control, textarea.form-control, .btn-generate {
             background: var(--input-bg);
+            color: var(--text-color);
             border: 2px solid var(--input-border);
-            color: var(--input-text);
             border-radius: 12px;
-            padding: 0.8rem 1.2rem;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            font-size: 1rem;
-            line-height: 1.5;
-            width: 100%;
-            box-sizing: border-box;
-            margin: 0 auto;
+            -webkit-text-fill-color: var(--text-color);
         }
 
         .form-control:focus {
@@ -163,13 +157,33 @@
             resize: vertical;
         }
 
+        textarea.form-control::selection {
+            background: rgba(74, 144, 226, 0.5);
+            color: white;
+        }
+
+        textarea.form-control::-moz-selection {
+            background: rgba(74, 144, 226, 0.5);
+            color: white;
+        }
+
+        /* Form inputs selection */
+        input[type="url"]::selection,
+        input[type="url"]::-moz-selection,
+        textarea::selection,
+        textarea::-moz-selection {
+            background: rgba(74, 144, 226, 0.5) !important;
+            color: white !important;
+            -webkit-text-fill-color: white !important;
+        }
+
         /* File input custom styling */
         .file-input-wrapper {
             position: relative;
             text-align: left;
             width: 100%;
             box-sizing: border-box;
-            height: 3.5rem;
+            height: 3rem;
             background: var(--input-bg);
             border: 2px solid var(--input-border);
             border-radius: 12px;
@@ -196,11 +210,11 @@
             top: 50%;
             transform: translateY(-50%);
             background: linear-gradient(135deg, rgba(74, 144, 226, 0.1) 0%, rgba(53, 122, 189, 0.1) 100%);
-            padding: 0.8rem 1.5rem;
-            border-radius: 8px;
-            border: 2px solid rgba(74, 144, 226, 0.3);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: 1px solid rgba(74, 144, 226, 0.3);
             color: var(--text-color);
-            font-size: 1rem;
+            font-size: 0.9rem;
             transition: all 0.3s ease;
             z-index: 1;
             margin-left: 0.5rem;
@@ -240,55 +254,42 @@
             color: rgba(255, 255, 255, 0.8);
         }
 
-        /* Enhanced button styling */
-        .btn-primary {
-            background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
-            border: none;
-            border-radius: 12px;
-            padding: 1.2rem 2.5rem;
-            font-size: 1.1rem;
-            font-weight: 500;
-            letter-spacing: 0.5px;
+        /* Enhanced Generate CV button */
+        .btn-generate {
+            padding: 0.8rem 2rem;
+            font-size: 1rem;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            margin-top: 2rem;
             position: relative;
             overflow: hidden;
-            opacity: 0;
-            animation: fadeIn 0.5s ease forwards 0.8s;
-            display: inline-block;
-            min-width: 200px;
+            margin-top: 2rem;
         }
 
-        .btn-primary::before {
+        .btn-generate:hover {
+            transform: translateY(-1px);
+        }
+
+        .btn-generate:active {
+            transform: translateY(1px);
+        }
+
+        .btn-generate::before {
             content: '';
             position: absolute;
             top: 0;
-            left: 0;
+            left: -100%;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 50%);
-            transform: translateX(-100%) rotate(45deg);
-            transition: transform 0.5s ease;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255, 255, 255, 0.1),
+                transparent
+            );
+            transition: 0.5s;
         }
 
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #357abd 0%, #2868a9 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(74, 144, 226, 0.3);
-        }
-
-        .btn-primary:hover::before {
-            transform: translateX(100%) rotate(45deg);
-        }
-
-        .btn-primary:active {
-            transform: translateY(1px);
-            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.2);
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+        .btn-generate:hover::before {
+            left: 100%;
         }
 
         /* Optional field styling */
@@ -400,6 +401,17 @@
         .navbar-brand:hover .logo {
             transform: scale(1.1);
         }
+
+        /* Selection color styles */
+        ::selection {
+            background: rgba(74, 144, 226, 0.5) !important;
+            color: white !important;
+        }
+
+        ::-moz-selection {
+            background: rgba(74, 144, 226, 0.5) !important;
+            color: white !important;
+        }
     </style>
 </head>
 
@@ -448,7 +460,7 @@
                 <input type="url" class="form-control" id="scholar_url" name="scholar_url" placeholder="https://scholar.google.com/...">
             </div>
 
-            <button type="submit" class="btn btn-primary">🚀 Generate CV</button>
+            <button type="submit" class="btn btn-generate">🚀 Generate CV</button>
         </form>
     </div>
 
