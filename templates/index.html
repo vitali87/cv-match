@@ -581,6 +581,39 @@
                 transform: translateX(24px) scale(1);
             }
         }
+
+        /* Chrome, Safari autofill background removal */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        input:-webkit-autofill:active {
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: var(--text-color) !important;
+            transition: background-color 5000s ease-in-out 0s;
+            box-shadow: inset 0 0 20px 20px var(--input-bg) !important;
+        }
+
+        /* Firefox autofill background removal */
+        input:autofill,
+        input:autofill:hover,
+        input:autofill:focus,
+        input:autofill:active {
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: var(--text-color) !important;
+            transition: background-color 5000s ease-in-out 0s;
+            box-shadow: inset 0 0 20px 20px var(--input-bg) !important;
+        }
+
+        /* Additional specificity for URL inputs */
+        input[type="url"]:-webkit-autofill,
+        input[type="url"]:-webkit-autofill:hover,
+        input[type="url"]:-webkit-autofill:focus,
+        input[type="url"]:-webkit-autofill:active {
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: var(--text-color) !important;
+            transition: background-color 5000s ease-in-out 0s !important;
+            box-shadow: inset 0 0 20px 20px var(--input-bg) !important;
+        }
     </style>
 </head>
 
