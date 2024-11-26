@@ -631,11 +631,20 @@ async def upload_files(
         # Generate cover letter if requested
         if include_cover_letter:
             cover_letter_content = generate_cover_letter(cv_data, job_description)
-            cover_letter_filename = f"cover_letter_{timestamp}_{random_code}.docx"
-            cover_letter_path = os.path.join(output_dir, cover_letter_filename)
-            create_cover_letter_docx(cover_letter_content, cover_letter_path)
-            files_to_return.append(cover_letter_path)
-            filenames.append(cover_letter_filename)
+            
+            # Create DOCX version of cover letter
+            cover_letter_filename_docx = f"cover_letter_{timestamp}_{random_code}.docx"
+            cover_letter_path_docx = os.path.join(output_dir, cover_letter_filename_docx)
+            create_cover_letter_docx(cover_letter_content, cover_letter_path_docx)
+            files_to_return.append(cover_letter_path_docx)
+            filenames.append(cover_letter_filename_docx)
+
+            # Create PDF version of cover letter
+            cover_letter_filename_pdf = f"cover_letter_{timestamp}_{random_code}.pdf"
+            cover_letter_path_pdf = os.path.join(output_dir, cover_letter_filename_pdf)
+            create_pdf(cover_letter_content, cover_letter_path_pdf)
+            files_to_return.append(cover_letter_path_pdf)
+            filenames.append(cover_letter_filename_pdf)
 
         # Create ZIP file with all documents
         zip_filename = f"application_{timestamp}_{random_code}.zip"
