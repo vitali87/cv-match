@@ -452,6 +452,118 @@ def create_cover_letter_docx(content: str, output_path: str) -> None:
     doc.save(output_path)
 
 
+def create_cv_docx(cv_data: dict, output_path: str) -> None:
+    """Create a CV in DOCX format with proper formatting."""
+    doc = Document()
+    
+    # Set up the page margins
+    sections = doc.sections
+    for section in sections:
+        section.top_margin = Inches(1)
+        section.bottom_margin = Inches(1)
+        section.left_margin = Inches(1)
+        section.right_margin = Inches(1)
+
+    # Profile Section
+    profile = cv_data.get("profile", {})
+    doc.add_heading(profile.get("name", "Your Name"), 0)
+    
+    title_para = doc.add_paragraph()
+    title_run = title_para.add_run(profile.get("title", "Your Title"))
+    title_run.bold = True
+
+    # Contact Information
+    contact = profile.get("contact", {})
+    contact_info = []
+    if email := contact.get("email"):
+        contact_info.append(email)
+    if phone := contact.get("phone"):
+        contact_info.append(phone)
+    if location := contact.get("location"):
+        contact_info.append(location)
+    if contact_info:
+        doc.add_paragraph(" • ".join(contact_info))
+
+    # Links
+    links = profile.get("links", [])
+    if links:
+        link_items = []
+        for link in links:
+            platform = link.get("platform", "")
+            url = link.get("url", "")
+            if platform and url:
+                link_items.append(f"{platform}: {url}")
+        if link_items:
+            doc.add_paragraph(" • ".join(link_items))
+
+    if summary := profile.get("summary"):
+        doc.add_paragraph(summary)
+
+    doc.add_paragraph().add_run("_" * 50)  # Horizontal line
+
+    # Work Experience
+    if work_experience := cv_data.get("work_experience", []):
+        doc.add_heading("Work Experience", 1)
+        for experience in work_experience:
+            title = experience.get("title", "Job Title")
+            company = experience.get("company", "Company Name")
+            date = experience.get("date", "Date Range")
+            
+            exp_heading = doc.add_heading(level=2)
+            exp_heading.add_run(f"{title} at {company}")
+            
+            date_para = doc.add_paragraph()
+            date_run = date_para.add_run(date)
+            date_run.italic = True
+
+            for achievement in experience.get("achievements", []):
+                doc.add_paragraph(achievement, style='List Bullet')
+
+    # Education
+    if education := cv_data.get("education", []):
+        doc.add_heading("Education", 1)
+        for edu in education:
+            degree = edu.get("degree", "Degree")
+            institution = edu.get("institution", "Institution Name")
+            date = edu.get("date", "Date Range")
+            
+            edu_heading = doc.add_heading(level=2)
+            edu_heading.add_run(f"{degree}, {institution}")
+            
+            date_para = doc.add_paragraph()
+            date_run = date_para.add_run(date)
+            date_run.italic = True
+
+            for detail in edu.get("details", []):
+                doc.add_paragraph(detail, style='List Bullet')
+
+    # Skills
+    if skills := cv_data.get("skills", []):
+        doc.add_heading("Skills", 1)
+        for skill in skills:
+            category = skill.get("category", "Category")
+            items = skill.get("items", [])
+            
+            skill_para = doc.add_paragraph()
+            skill_para.add_run(f"{category}: ").bold = True
+            skill_para.add_run(", ".join(items))
+
+    # Languages
+    if languages := cv_data.get("languages", []):
+        doc.add_heading("Languages", 1)
+        lang_items = []
+        for lang in languages:
+            language = lang.get("language", "")
+            proficiency = lang.get("proficiency", "")
+            if language and proficiency:
+                lang_items.append(f"{language}: {proficiency}")
+        if lang_items:
+            doc.add_paragraph(", ".join(lang_items))
+
+    # Save the document
+    doc.save(output_path)
+
+
 @app.post("/upload")
 async def upload_files(
     cv_file: UploadFile = File(...),
@@ -500,13 +612,21 @@ async def upload_files(
         random_code = generate_random_code()
         timestamp = int(time.time())
 
-        # Create CV file
-        cv_filename = f"cv_{timestamp}_{random_code}.pdf"
-        cv_path = os.path.join(output_dir, cv_filename)
-        create_pdf(markdown_content, cv_path)
+        files_to_return = []
+        filenames = []
 
-        files_to_return = [cv_path]
-        filenames = [cv_filename]
+        # Create CV files (both PDF and DOCX)
+        cv_filename_pdf = f"cv_{timestamp}_{random_code}.pdf"
+        cv_path_pdf = os.path.join(output_dir, cv_filename_pdf)
+        create_pdf(markdown_content, cv_path_pdf)
+        files_to_return.append(cv_path_pdf)
+        filenames.append(cv_filename_pdf)
+
+        cv_filename_docx = f"cv_{timestamp}_{random_code}.docx"
+        cv_path_docx = os.path.join(output_dir, cv_filename_docx)
+        create_cv_docx(cv_data, cv_path_docx)
+        files_to_return.append(cv_path_docx)
+        filenames.append(cv_filename_docx)
 
         # Generate cover letter if requested
         if include_cover_letter:
@@ -517,47 +637,31 @@ async def upload_files(
             files_to_return.append(cover_letter_path)
             filenames.append(cover_letter_filename)
 
-        # Create ZIP file if there are multiple files
-        if len(files_to_return) > 1:
-            zip_filename = f"application_{timestamp}_{random_code}.zip"
-            zip_path = os.path.join(output_dir, zip_filename)
-            
-            with zipfile.ZipFile(zip_path, 'w') as zipf:
-                for file_path, filename in zip(files_to_return, filenames):
-                    zipf.write(file_path, filename)
+        # Create ZIP file with all documents
+        zip_filename = f"application_{timestamp}_{random_code}.zip"
+        zip_path = os.path.join(output_dir, zip_filename)
+        
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            for file_path, filename in zip(files_to_return, filenames):
+                zipf.write(file_path, filename)
 
-            # Clean up individual files
-            for file_path in files_to_return:
-                os.remove(file_path)
+        # Clean up individual files
+        for file_path in files_to_return:
+            os.remove(file_path)
 
-            headers = {
-                "Content-Disposition": f'attachment; filename="{zip_filename}"',
-                "Content-Type": "application/zip",
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "Pragma": "no-cache",
-                "Expires": "0",
-            }
+        headers = {
+            "Content-Disposition": f'attachment; filename="{zip_filename}"',
+            "Content-Type": "application/zip",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
 
-            return FileResponse(
-                path=zip_path,
-                headers=headers,
-                background=BackgroundTask(lambda: os.remove(zip_path)),
-            )
-        else:
-            # Return single CV file
-            headers = {
-                "Content-Disposition": f'attachment; filename="{cv_filename}"',
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "Pragma": "no-cache",
-                "Expires": "0",
-            }
-
-            return FileResponse(
-                path=cv_path,
-                media_type="application/pdf",
-                headers=headers,
-                background=BackgroundTask(lambda: os.remove(cv_path)),
-            )
+        return FileResponse(
+            path=zip_path,
+            headers=headers,
+            background=BackgroundTask(lambda: os.remove(zip_path)),
+        )
 
 
 @app.get("/", response_class=HTMLResponse)
