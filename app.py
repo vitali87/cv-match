@@ -19,6 +19,9 @@ import pypdf
 import random
 import string
 from typing import Optional
+import zipfile
+from docx.shared import Pt, Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # Load environment variables and configure logging
 load_dotenv(override=True)
@@ -202,6 +205,77 @@ Google Scholar URL:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def generate_cover_letter(cv_data: dict, job_description: str) -> str:
+    """Generate a cover letter using Claude based on CV and job description."""
+    try:
+        system_prompt = """You are an expert cover letter writer. Your task is to write a compelling, professional cover letter that demonstrates enthusiasm while maintaining appropriate formality.
+
+Key requirements:
+- Use the candidate's actual experience and qualifications from their CV
+- Extract and use the company name, position title, and team/department information from the job description
+- Only use [HIRING_MANAGER] as a placeholder if no hiring manager name is found in the job description
+- If company name or position title isn't clear from the job description, use [COMPANY_NAME] or [POSITION_TITLE] as placeholders
+- Align the candidate's experience with the job requirements
+- Show genuine enthusiasm and motivation
+- Maintain a professional yet engaging tone
+- Keep the length to one page
+- Structure in proper business letter format with date and contact information
+- Focus on specific, relevant achievements
+- Avoid clichés and generic statements
+- Include specific details about the company and role from the job description to show genuine interest
+
+First, analyze the job description to extract:
+1. Company name
+2. Position title
+3. Team/department name
+4. Hiring manager's name (if available)
+5. Key company values or mission statements
+6. Specific projects or initiatives mentioned"""
+
+        user_content = f"""Write a cover letter for this candidate based on their CV and the job description provided. 
+
+Important guidelines:
+- Use the candidate's actual name and contact details from the CV
+- Extract and use real company details, position, and team information from the job description
+- Only use placeholders ([COMPANY_NAME], [POSITION_TITLE], [HIRING_MANAGER]) if the information cannot be found in the job description
+- Reference specific achievements and experiences from their CV that align with the job requirements
+- Show how their skills and experience make them an ideal fit for this role
+- Demonstrate enthusiasm for the role and company while maintaining professionalism
+- Make clear connections between their past experiences and the job requirements
+- Format the letter properly with date, addresses, and proper spacing
+- Include specific details about the company's projects, values, or initiatives mentioned in the job description
+
+CV Data:
+{json.dumps(cv_data, indent=2)}
+
+Job Description:
+{job_description}"""
+
+        response = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=4096,
+            temperature=0.7,
+            system=system_prompt,
+            messages=[
+                {
+                    "role": "user",
+                    "content": user_content,
+                }
+            ],
+        )
+
+        if not response.content or not response.content[0].text.strip():
+            raise HTTPException(
+                status_code=500, detail="Empty response received from language model."
+            )
+
+        return response.content[0].text.strip()
+
+    except Exception as e:
+        logger.error(f"Error generating cover letter: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 def generate_markdown(cv_data: dict) -> str:
     """Convert structured CV data to markdown format."""
     sections = [
@@ -350,12 +424,41 @@ def generate_random_code(length: int = 6) -> str:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def create_cover_letter_docx(content: str, output_path: str) -> None:
+    """Create a cover letter in DOCX format with proper formatting."""
+    doc = Document()
+    
+    # Set up the page margins
+    sections = doc.sections
+    for section in sections:
+        section.top_margin = Inches(1)
+        section.bottom_margin = Inches(1)
+        section.left_margin = Inches(1)
+        section.right_margin = Inches(1)
+
+    # Add content with proper formatting
+    paragraphs = content.split('\n')
+    for p in paragraphs:
+        if p.strip():  # Only process non-empty lines
+            paragraph = doc.add_paragraph()
+            if p.startswith('#'):  # Handle headers
+                p = p.lstrip('#').strip()
+                paragraph.style = 'Heading 1'
+            run = paragraph.add_run(p)
+            run.font.size = Pt(11)
+            run.font.name = 'Calibri'
+
+    # Save the document
+    doc.save(output_path)
+
+
 @app.post("/upload")
 async def upload_files(
     cv_file: UploadFile = File(...),
     job_description: str = Form(...),
     scholar_url: Optional[str] = Form(None),
     personal_website: Optional[str] = Form(None),
+    include_cover_letter: Optional[bool] = Form(False),
 ):
     """Process uploaded CV and generate optimized version."""
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -374,61 +477,87 @@ async def upload_files(
         # Process with LLM
         cv_data = parse_cv_with_llm(cv_text, job_description, scholar_url, personal_website)
 
-        logger.info("Links before override:")
-        for link in cv_data["profile"]["links"]:
-            logger.info(f"Platform: {link['platform']}, URL: {link['url']}")
-
-        # Override Google Scholar URL if provided
+        # Handle Google Scholar URL override
         if scholar_url:
             logger.info(f"Attempting to override with scholar_url: {scholar_url}")
-            # Remove any existing Google Scholar link
             cv_data["profile"]["links"] = [
                 link
                 for link in cv_data["profile"]["links"]
                 if link["platform"] != "Google Scholar"
             ]
-            # Add the new Google Scholar link
             cv_data["profile"]["links"].append(
                 {"platform": "Google Scholar", "url": scholar_url.strip()}
             )
 
-            logger.info("Links after override:")
-            for link in cv_data["profile"]["links"]:
-                logger.info(f"Platform: {link['platform']}, URL: {link['url']}")
-
-        # Generate markdown
+        # Generate markdown for CV
         markdown_content = generate_markdown(cv_data)
 
-        # Log the first few lines of markdown content to see what URLs made it through
-        logger.info("First 500 characters of markdown content:")
-        logger.info(markdown_content[:500])
-
-        # Create output file with random code
+        # Generate output directory if it doesn't exist
         output_dir = os.path.join(os.path.dirname(__file__), CONFIG["PATHS"]["OUTPUT"])
         os.makedirs(output_dir, exist_ok=True)
 
+        # Generate random code and timestamp for file names
         random_code = generate_random_code()
         timestamp = int(time.time())
-        output_filename = f"cv_{timestamp}_{random_code}.pdf"
-        output_path = os.path.join(output_dir, output_filename)
 
-        create_pdf(markdown_content, output_path)
+        # Create CV file
+        cv_filename = f"cv_{timestamp}_{random_code}.pdf"
+        cv_path = os.path.join(output_dir, cv_filename)
+        create_pdf(markdown_content, cv_path)
 
-        # Simplify the Content-Disposition header
-        headers = {
-            "Content-Disposition": f'attachment; filename="{output_filename}"',
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        }
+        files_to_return = [cv_path]
+        filenames = [cv_filename]
 
-        return FileResponse(
-            path=output_path,
-            media_type="application/pdf",
-            filename=output_filename,
-            headers=headers,
-            background=BackgroundTask(lambda: os.remove(output_path)),
-        )
+        # Generate cover letter if requested
+        if include_cover_letter:
+            cover_letter_content = generate_cover_letter(cv_data, job_description)
+            cover_letter_filename = f"cover_letter_{timestamp}_{random_code}.docx"
+            cover_letter_path = os.path.join(output_dir, cover_letter_filename)
+            create_cover_letter_docx(cover_letter_content, cover_letter_path)
+            files_to_return.append(cover_letter_path)
+            filenames.append(cover_letter_filename)
+
+        # Create ZIP file if there are multiple files
+        if len(files_to_return) > 1:
+            zip_filename = f"application_{timestamp}_{random_code}.zip"
+            zip_path = os.path.join(output_dir, zip_filename)
+            
+            with zipfile.ZipFile(zip_path, 'w') as zipf:
+                for file_path, filename in zip(files_to_return, filenames):
+                    zipf.write(file_path, filename)
+
+            # Clean up individual files
+            for file_path in files_to_return:
+                os.remove(file_path)
+
+            headers = {
+                "Content-Disposition": f'attachment; filename="{zip_filename}"',
+                "Content-Type": "application/zip",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            }
+
+            return FileResponse(
+                path=zip_path,
+                headers=headers,
+                background=BackgroundTask(lambda: os.remove(zip_path)),
+            )
+        else:
+            # Return single CV file
+            headers = {
+                "Content-Disposition": f'attachment; filename="{cv_filename}"',
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            }
+
+            return FileResponse(
+                path=cv_path,
+                media_type="application/pdf",
+                headers=headers,
+                background=BackgroundTask(lambda: os.remove(cv_path)),
+            )
 
 
 @app.get("/", response_class=HTMLResponse)
